@@ -99,13 +99,11 @@
           const [tampilkanModal, setTampilkanModal] = useState(false)
           const [tampilkanFilterModal, setTampilkanFilterModal] = useState(false)
           
-          // State baru untuk multi-bulan filter akumulasi
-          const [selectedFilterMonths, setSelectedFilterMonths] = useState(() => {
-            const blnFormat = String(tanggalSekarang.getMonth() + 1).padStart(2, '0')
-            return [`${tanggalSekarang.getFullYear()}-${blnFormat}`]
-          })
-          const [tampilkanMultiFilterModal, setTampilkanMultiFilterModal] = useState(false)
-          const [tempSelectedMonths, setTempSelectedMonths] = useState([])
+          // State baru untuk filter range bulan-tahun yang lebih sederhana
+          const [filterTahun, setFilterTahun] = useState(2026)
+          const [filterBulanMulai, setFilterBulanMulai] = useState(0) // 0 = Januari
+          const [filterBulanSelesai, setFilterBulanSelesai] = useState(11) // 11 = Desember
+          const [tampilkanFilterRangeModal, setTampilkanFilterRangeModal] = useState(false)
 
           const [sudahTercatat, setSudahTercatat] = useState(false)
           const [tampilkanKonfirmasiHapus, setTampilkanKonfirmasiHapus] = useState(false)
@@ -204,16 +202,17 @@
             return { total, pagi, sore, long, rincian }
           }
 
-          // Perhitungan Multi-Bulan untuk Akumulasi Filter
-          const hitungGajiMultiBulan = (arrayBulanTahun) => {
+          // Perhitungan Filter Range Bulan (sederhana)
+          const hitungGajiRangeBulan = (tahun, bulanMulai, bulanSelesai) => {
             let total = 0
             let pagi = 0
             let sore = 0
             let long = 0
 
-            Object.keys(dataShift).forEach(key => {
-              const blnTahunKey = key.substring(0, 7) // Mengambil bagian 'YYYY-MM'
-              if (arrayBulanTahun.includes(blnTahunKey)) {
+            for (let bln = bulanMulai; bln <= bulanSelesai; bln++) {
+              const jlhHari = new Date(tahun, bln + 1, 0).getDate()
+              for (let tgl = 1; tgl <= jlhHari; tgl++) {
+                const key = formatKeKey(tahun, bln, tgl)
                 const shift = dataShift[key]
                 if (shift && shift.tipe !== 'Libur') {
                   const tarif = TARIF[shift.tipe] || 0
@@ -223,7 +222,7 @@
                   if (shift.tipe === 'Long') long++
                 }
               }
-            })
+            }
 
             return { total, pagi, sore, long }
           }
@@ -284,8 +283,8 @@
           const tutupBuku = hitungGajiTutupBuku()
           const akumulasiSemua = hitungAkumulasiSemua()
           
-          // Hitung nilai multi bulan dari filter aktif
-          const akumulasiFilter = hitungGajiMultiBulan(selectedFilterMonths)
+          // Hitung nilai filter range
+          const akumulasiFilter = hitungGajiRangeBulan(filterTahun, filterBulanMulai, filterBulanSelesai)
 
           const keyGajiPeriod = `${tahunAktif}-${String(bulanAktif + 1).padStart(2, '0')}`
           const gajianLunas = statusGaji[keyGajiPeriod] || false
@@ -350,29 +349,18 @@
             setTampilkanFilterModal(false)
           }
 
-          // Pembuka Modal Multi Filter
-          const bukaModalMultiFilter = () => {
-            setTempSelectedMonths([...selectedFilterMonths])
-            setTampilkanMultiFilterModal(true)
+          // Fungsi untuk membuka modal filter range
+          const bukaModalFilterRange = () => {
+            setTampilkanFilterRangeModal(true)
           }
 
-          const handleToggleMonthSelection = (year, monthIdx) => {
-            const formatKey = `${year}-${String(monthIdx + 1).padStart(2, '0')}`
-            if (tempSelectedMonths.includes(formatKey)) {
-              setTempSelectedMonths(tempSelectedMonths.filter(m => m !== formatKey))
-            } else {
-              setTempSelectedMonths([...tempSelectedMonths, formatKey])
-            }
-          }
-
-          const terapkanMultiFilter = () => {
-            if (tempSelectedMonths.length === 0) {
-              pemicuNotifikasi("Silakan pilih minimal 1 bulan!")
+          const terapkanFilterRange = () => {
+            if (filterBulanMulai > filterBulanSelesai) {
+              pemicuNotifikasi("Bulan mulai harus kurang dari atau sama dengan bulan selesai!")
               return
             }
-            setSelectedFilterMonths(tempSelectedMonths)
-            setTampilkanMultiFilterModal(false)
-            pemicuNotifikasi("Filter akumulasi bulan berhasil diterapkan!")
+            setTampilkanFilterRangeModal(false)
+            pemicuNotifikasi(`Filter diterapkan: ${daftarBulan[filterBulanMulai]} - ${daftarBulan[filterBulanSelesai]} ${filterTahun}`)
           }
 
           const eksporData = () => {
@@ -461,23 +449,19 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
             document.body.removeChild(inputTeks)
           }
 
-          // Fungsi render kalender dinamis berdasarkan kode 'YYYY-MM' hasil multi filter
-          const renderKalenderFilterBulan = (tahunBulanStr) => {
-            const [thnStr, blnStr] = tahunBulanStr.split('-')
-            const thnVal = parseInt(thnStr)
-            const blnVal = parseInt(blnStr) - 1
-
-            const jlhHariArsip = new Date(thnVal, blnVal + 1, 0).getDate()
-            const hariPertamaArsip = new Date(thnVal, blnVal, 1).getDay()
+          // Fungsi render kalender filter range
+          const renderKalenderFilterBulan = (tahun, bln) => {
+            const jlhHariArsip = new Date(tahun, bln + 1, 0).getDate()
+            const hariPertamaArsip = new Date(tahun, bln, 1).getDay()
 
             return (
-              <div key={tahunBulanStr} className="bg-stone-50 p-4 rounded-xl border border-stone-200 shadow-sm space-y-3">
+              <div key={`${tahun}-${bln}`} className="bg-stone-50 p-4 rounded-xl border border-stone-200 shadow-sm space-y-3">
                 <div className="flex justify-between items-center border-b border-stone-200 pb-2">
                   <span className="font-bold text-sm text-stone-850">
-                    {daftarBulan[blnVal]} {thnVal}
+                    {daftarBulan[bln]} {tahun}
                   </span>
                   <span className="text-xs bg-amber-100 text-amber-950 px-2 py-0.5 rounded font-black">
-                    Rp {hitungGajiMurniBulan(thnVal, blnVal).total.toLocaleString('id-ID')}
+                    Rp {hitungGajiMurniBulan(tahun, bln).total.toLocaleString('id-ID')}
                   </span>
                 </div>
 
@@ -493,12 +477,12 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
 
                 <div className="grid grid-cols-7 gap-1">
                   {Array.from({ length: hariPertamaArsip }).map((_, idx) => (
-                    <div key={`empty-filter-${tahunBulanStr}-${idx}`} className="rounded-lg bg-stone-100/50 h-8"></div>
+                    <div key={`empty-filter-${tahun}-${bln}-${idx}`} className="rounded-lg bg-stone-100/50 h-8"></div>
                   ))}
 
                   {Array.from({ length: jlhHariArsip }).map((_, idx) => {
                     const tanggal = idx + 1
-                    const key = formatKeKey(thnVal, blnVal, tanggal)
+                    const key = formatKeKey(tahun, bln, tanggal)
                     const shift = dataShift[key]
 
                     let bgKelas = "bg-white border-stone-200 text-stone-700"
@@ -517,7 +501,7 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
 
                     return (
                       <div
-                        key={`hari-filter-${tahunBulanStr}-${tanggal}`}
+                        key={`hari-filter-${tahun}-${bln}-${tanggal}`}
                         className={`rounded-lg p-1 flex flex-col justify-between items-start border text-left cursor-default h-8 text-[8px] ${bgKelas}`}
                       >
                         <span className="font-bold opacity-90">{tanggal}</span>
@@ -599,7 +583,6 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
                         Pilih Bulan & Tahun
                       </button>
 
-                      {/* Gaji Berjalan */}
                       <div className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200">
                         <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider mb-2">
                           Gaji Kalender Berjalan
@@ -886,23 +869,28 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
                       <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2 border-b border-stone-100 pb-4">
                           <div>
-                            <h2 className="text-base font-bold text-stone-850">Akumulasi Filter Multi-Bulan</h2>
-                            <p className="text-xs text-stone-400">Total upah & kalender dari bulan-bulan terpilih</p>
+                            <h2 className="text-base font-bold text-stone-850">Filter Range Bulan & Tahun</h2>
+                            <p className="text-xs text-stone-400">Pilih rentang bulan yang ingin dihitung</p>
                           </div>
                           <button 
-                            onClick={bukaModalMultiFilter}
+                            onClick={bukaModalFilterRange}
                             className="bg-amber-950 hover:bg-amber-900 text-white font-bold text-xs py-2 px-4 rounded-xl flex items-center justify-center gap-1.5 transition shadow-sm self-start"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293L3.293 7.793A1 1 0 013 7.086V4z" />
                             </svg>
-                            Filter Multi-Bulan ({selectedFilterMonths.length})
+                            Atur Filter
                           </button>
+                        </div>
+                        
+                        {/* Info filter yang aktif */}
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-xs text-amber-900">
+                          <span className="font-bold">Filter aktif:</span> {daftarBulan[filterBulanMulai]} - {daftarBulan[filterBulanSelesai]} {filterTahun}
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                           <div className="p-4 rounded-xl text-white text-center bg-amber-950 flex flex-col justify-center shadow-sm">
-                            <span className="text-xs text-amber-200 block mb-1 font-semibold">Total Gaji Terfilter (Akumulasi)</span>
+                            <span className="text-xs text-amber-200 block mb-1 font-semibold">Total Gaji Terfilter (Range)</span>
                             <span className="text-3xl font-black text-amber-300">
                               Rp {akumulasiFilter.total.toLocaleString('id-ID')}
                             </span>
@@ -922,24 +910,18 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
                           <span>Long Terfilter: <strong className="text-red-600">{akumulasiFilter.long}x</strong></span>
                         </div>
 
-                        {/* Deretan Kalender Multi-Bulan */}
+                        {/* Deretan Kalender Range */}
                         <div className="space-y-6">
                           <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">
                             Kalender Bulan Terfilter
                           </h4>
                           
-                          {selectedFilterMonths.length === 0 ? (
-                            <div className="text-center py-8 text-stone-400 italic text-xs border border-dashed rounded-xl">
-                              Belum ada bulan yang dipilih dalam filter.
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-1 gap-6">
-                              {[...selectedFilterMonths]
-                                .sort((a, b) => a.localeCompare(b))
-                                .map(thnBln => renderKalenderFilterBulan(thnBln))
-                              }
-                            </div>
-                          )}
+                          <div className="grid grid-cols-1 gap-6">
+                            {Array.from({ length: filterBulanSelesai - filterBulanMulai + 1 }).map((_, idx) => {
+                              const bln = filterBulanMulai + idx
+                              return renderKalenderFilterBulan(filterTahun, bln)
+                            })}
+                          </div>
                         </div>
                       </div>
 
@@ -1050,84 +1032,76 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
                 </div>
               )}
 
-              {/* MODAL POPUP MULTI-BULAN FILTER AKUMULASI */}
-              {tampilkanMultiFilterModal && (
+              {/* MODAL FILTER RANGE BULAN-TAHUN YANG DISEDERHANAKAN */}
+              {tampilkanFilterRangeModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                  <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-stone-200 max-h-[90vh] flex flex-col">
+                  <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl border border-stone-200">
                     <div className="bg-amber-950 text-white p-4">
-                      <h5 className="font-bold text-base m-0">Filter Akumulasi Multi-Bulan</h5>
-                      <p className="text-xs text-amber-200 m-0">Pilih beberapa bulan untuk dihitung sekaligus</p>
+                      <h5 className="font-bold text-base m-0">Filter Range Bulan & Tahun</h5>
+                      <p className="text-xs text-amber-200 m-0">Pilih rentang bulan dan tahun untuk akumulasi</p>
                     </div>
 
-                    <div className="p-4 overflow-y-auto flex-1 space-y-6">
-                      <div className="flex gap-2 justify-end text-xs">
-                        <button 
-                          onClick={() => {
-                            const semuaBulan = []
-                            daftarTahun.forEach(thn => {
-                              daftarBulan.forEach((_, idx) => {
-                                semuaBulan.push(`${thn}-${String(idx + 1).padStart(2, '0')}`)
-                              })
-                            })
-                            setTempSelectedMonths(semuaBulan)
-                          }}
-                          className="text-amber-800 hover:underline font-bold"
+                    <div className="p-4 space-y-4">
+                      {/* Pilih Tahun */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">Pilih Tahun</label>
+                        <select 
+                          value={filterTahun}
+                          onChange={(e) => setFilterTahun(parseInt(e.target.value))}
+                          className="w-full p-2.5 border border-stone-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
                         >
-                          Pilih Semua
-                        </button>
-                        <span className="text-stone-300">|</span>
-                        <button 
-                          onClick={() => setTempSelectedMonths([])}
-                          className="text-stone-500 hover:underline font-bold"
-                        >
-                          Hapus Semua
-                        </button>
+                          {daftarTahun.map(thn => (
+                            <option key={thn} value={thn}>{thn}</option>
+                          ))}
+                        </select>
                       </div>
 
-                      {daftarTahun.map(thn => (
-                        <div key={thn} className="space-y-2 border-b border-stone-100 pb-4 last:border-0 last:pb-0">
-                          <span className="text-xs font-black text-amber-950 block">{thn}</span>
-                          <div className="grid grid-cols-3 gap-2">
-                            {daftarBulan.map((bln, idx) => {
-                              const formatKey = `${thn}-${String(idx + 1).padStart(2, '0')}`
-                              const isChecked = tempSelectedMonths.includes(formatKey)
-                              return (
-                                <button
-                                  key={idx}
-                                  type="button"
-                                  onClick={() => handleToggleMonthSelection(thn, idx)}
-                                  className={`py-2 px-3 text-xs font-semibold rounded-xl border flex items-center justify-between transition ${
-                                    isChecked 
-                                      ? 'bg-amber-950 border-amber-950 text-white shadow-sm font-bold' 
-                                      : 'bg-white border-stone-200 hover:bg-stone-50 text-stone-700'
-                                  }`}
-                                >
-                                  <span>{bln}</span>
-                                  {isChecked && (
-                                    <svg className="w-3.5 h-3.5 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  )}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      ))}
+                      {/* Pilih Bulan Mulai */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">Bulan Mulai</label>
+                        <select 
+                          value={filterBulanMulai}
+                          onChange={(e) => setFilterBulanMulai(parseInt(e.target.value))}
+                          className="w-full p-2.5 border border-stone-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
+                        >
+                          {daftarBulan.map((bln, idx) => (
+                            <option key={idx} value={idx}>{bln}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Pilih Bulan Selesai */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-2">Bulan Selesai</label>
+                        <select 
+                          value={filterBulanSelesai}
+                          onChange={(e) => setFilterBulanSelesai(parseInt(e.target.value))}
+                          className="w-full p-2.5 border border-stone-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none"
+                        >
+                          {daftarBulan.map((bln, idx) => (
+                            <option key={idx} value={idx}>{bln}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Preview Range */}
+                      <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-xs text-amber-900 text-center">
+                        <span className="font-bold">Range terpilih:</span> {daftarBulan[filterBulanMulai]} - {daftarBulan[filterBulanSelesai]} {filterTahun}
+                      </div>
                     </div>
 
                     <div className="bg-stone-50 px-4 py-3 flex gap-2 border-t border-stone-150 justify-end">
                       <button 
-                        onClick={() => setTampilkanMultiFilterModal(false)} 
+                        onClick={() => setTampilkanFilterRangeModal(false)} 
                         className="px-4 py-2 bg-stone-200 text-stone-700 hover:bg-stone-300 rounded-xl text-xs font-bold transition"
                       >
                         Batal
                       </button>
                       <button 
-                        onClick={terapkanMultiFilter} 
+                        onClick={terapkanFilterRange} 
                         className="px-4 py-2 bg-amber-950 hover:bg-amber-900 text-white rounded-xl text-xs font-bold transition"
                       >
-                        Terapkan Filter ({tempSelectedMonths.length})
+                        Terapkan Filter
                       </button>
                     </div>
                   </div>

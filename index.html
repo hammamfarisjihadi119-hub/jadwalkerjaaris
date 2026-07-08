@@ -99,10 +99,13 @@
           const [tampilkanModal, setTampilkanModal] = useState(false)
           const [tampilkanFilterModal, setTampilkanFilterModal] = useState(false)
           
-          // State filter range (YYYY-MM)
-          const [filterStart, setFilterStart] = useState(`${tanggalSekarang.getFullYear()}-${String(tanggalSekarang.getMonth() + 1).padStart(2, '0')}`)
-          const [filterEnd, setFilterEnd] = useState(`${tanggalSekarang.getFullYear()}-${String(tanggalSekarang.getMonth() + 1).padStart(2, '0')}`)
-          const [tampilkanRangeFilterModal, setTampilkanRangeFilterModal] = useState(false)
+          // State baru untuk multi-bulan filter akumulasi
+          const [selectedFilterMonths, setSelectedFilterMonths] = useState(() => {
+            const blnFormat = String(tanggalSekarang.getMonth() + 1).padStart(2, '0')
+            return [`${tanggalSekarang.getFullYear()}-${blnFormat}`]
+          })
+          const [tampilkanMultiFilterModal, setTampilkanMultiFilterModal] = useState(false)
+          const [tempSelectedMonths, setTempSelectedMonths] = useState([])
 
           const [sudahTercatat, setSudahTercatat] = useState(false)
           const [tampilkanKonfirmasiHapus, setTampilkanKonfirmasiHapus] = useState(false)
@@ -202,22 +205,15 @@
           }
 
           // Perhitungan Multi-Bulan untuk Akumulasi Filter
-          const hitungGajiMultiBulan = (start, end) => {
+          const hitungGajiMultiBulan = (arrayBulanTahun) => {
             let total = 0
             let pagi = 0
             let sore = 0
             let long = 0
 
-            const [sy, sm] = start.split('-').map(Number)
-            const [ey, em] = end.split('-').map(Number)
-            const startDate = new Date(sy, sm - 1)
-            const endDate = new Date(ey, em - 1)
-
             Object.keys(dataShift).forEach(key => {
-              const [y, m] = key.split('-').slice(0, 2).map(Number)
-              const currentDate = new Date(y, m - 1)
-              
-              if (currentDate >= startDate && currentDate <= endDate) {
+              const blnTahunKey = key.substring(0, 7) // Mengambil bagian 'YYYY-MM'
+              if (arrayBulanTahun.includes(blnTahunKey)) {
                 const shift = dataShift[key]
                 if (shift && shift.tipe !== 'Libur') {
                   const tarif = TARIF[shift.tipe] || 0
@@ -288,8 +284,8 @@
           const tutupBuku = hitungGajiTutupBuku()
           const akumulasiSemua = hitungAkumulasiSemua()
           
-          // Hitung nilai multi bulan dari filter rentang aktif
-          const akumulasiFilter = hitungGajiMultiBulan(filterStart, filterEnd)
+          // Hitung nilai multi bulan dari filter aktif
+          const akumulasiFilter = hitungGajiMultiBulan(selectedFilterMonths)
 
           const keyGajiPeriod = `${tahunAktif}-${String(bulanAktif + 1).padStart(2, '0')}`
           const gajianLunas = statusGaji[keyGajiPeriod] || false
@@ -370,13 +366,13 @@
           }
 
           const terapkanMultiFilter = () => {
-          const terapkanFilter = () => {
-            if (new Date(filterStart) > new Date(filterEnd)) {
-              pemicuNotifikasi("Bulan 'Sampai' harus setelah 'Dari'!")
+            if (tempSelectedMonths.length === 0) {
+              pemicuNotifikasi("Silakan pilih minimal 1 bulan!")
               return
             }
-            setTampilkanRangeFilterModal(false)
-            pemicuNotifikasi("Filter rentang bulan berhasil diterapkan!")
+            setSelectedFilterMonths(tempSelectedMonths)
+            setTampilkanMultiFilterModal(false)
+            pemicuNotifikasi("Filter akumulasi bulan berhasil diterapkan!")
           }
 
           const eksporData = () => {
@@ -619,13 +615,288 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
                             </span>
                           </div>
                           <button 
-                            onClick={() => setTampilkanRangeFilterModal(true)}
+                            onClick={() => bukaModalLaporan('murni')}
+                            className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 border border-emerald-200 focus:outline-none"
+                          >
+                            Kirim Laporan Kerja
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200">
+                        <h3 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-3">
+                          Rincian Shift ({daftarBulan[bulanAktif]})
+                        </h3>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="bg-blue-50 p-2 rounded-lg border border-blue-200 text-center">
+                            <span className="text-stone-500 block">Pagi</span>
+                            <span className="text-base font-bold text-blue-700">{murni.pagi}x</span>
+                          </div>
+                          <div className="bg-yellow-100 p-2 rounded-lg border border-yellow-250 text-center">
+                            <span className="text-stone-500 block">Sore</span>
+                            <span className="text-base font-bold text-yellow-600">{murni.sore}x</span>
+                          </div>
+                          <div className="bg-red-100 p-2 rounded-lg border border-red-200 text-center">
+                            <span className="text-stone-500 block">Long</span>
+                            <span className="text-base font-bold text-red-600">{murni.long}x</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2 space-y-6">
+                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+                        <div className="flex justify-between items-center mb-5">
+                          <div className="flex items-center gap-2">
+                            <button onClick={geserKiri} className="p-2 bg-stone-100 hover:bg-stone-200 rounded-lg transition text-stone-700">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path fillRule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+                              </svg>
+                            </button>
+
+                            <h2 className="text-base font-bold text-stone-800 text-center min-w-[140px] m-0">
+                              {daftarBulan[bulanAktif]} {tahunAktif}
+                            </h2>
+
+                            <button onClick={geserKanan} className="p-2 bg-stone-100 hover:bg-stone-200 rounded-lg transition text-stone-700">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                <path fillRule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+                              </svg>
+                            </button>
+                          </div>
+
+                          <button 
+                            onClick={() => {
+                              setBulanAktif(6)
+                              setTahunAktif(2026)
+                            }}
+                            className="text-xs bg-stone-100 hover:bg-stone-250 text-stone-800 font-bold py-2 px-3 rounded-xl border border-stone-300 transition"
+                          >
+                            Bulan Utama
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-1 text-center font-bold text-[10px] text-stone-400 uppercase mb-2">
+                          <div>Min</div>
+                          <div>Sen</div>
+                          <div>Sel</div>
+                          <div>Rab</div>
+                          <div>Kam</div>
+                          <div>Jum</div>
+                          <div>Sab</div>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-2">
+                          {Array.from({ length: hariPertama }).map((_, idx) => (
+                            <div key={`empty-${idx}`} className="rounded-xl bg-stone-50 border border-dashed border-stone-200 h-12"></div>
+                          ))}
+
+                          {Array.from({ length: jumlahHari }).map((_, idx) => {
+                            const tanggal = idx + 1
+                            const key = formatKeKey(tahunAktif, bulanAktif, tanggal)
+                            const shift = dataShift[key]
+
+                            let bgKelas = "bg-stone-50 border-stone-200 text-stone-800 hover:bg-stone-100"
+                            
+                            if (shift) {
+                              if (shift.tipe === 'Pagi') {
+                                bgKelas = "shift-biru-pagi"
+                              } else if (shift.tipe === 'Sore') {
+                                bgKelas = "shift-kuning-sore"
+                              } else if (shift.tipe === 'Long') {
+                                bgKelas = "shift-api-long"
+                              } else if (shift.tipe === 'Libur') {
+                                bgKelas = "shift-dongker-off"
+                              }
+                            }
+
+                            const adalahHariIni = tahunAktif === 2026 && bulanAktif === 6 && tanggal === 8
+
+                            return (
+                              <button
+                                key={tanggal}
+                                onClick={() => bukaFormShift(tanggal)}
+                                className={`rounded-xl p-1.5 flex flex-col justify-between items-start border transition-all text-left h-12 ${bgKelas} ${adalahHariIni ? 'ring-2 ring-amber-950' : ''}`}
+                              >
+                                <span className="text-[10px] font-bold opacity-90">{tanggal}</span>
+                                {shift && shift.tipe !== 'Libur' && (
+                                  <span className="text-[9px] font-black uppercase tracking-tight block self-stretch text-center">
+                                    {shift.tipe}
+                                  </span>
+                                )}
+                                {shift && shift.tipe === 'Libur' && (
+                                  <span className="text-[8px] opacity-80 italic block self-stretch text-center">Off</span>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200">
+                        <h2 className="text-sm font-bold text-stone-800 mb-3">
+                          Daftar Kerja Bulan {daftarBulan[bulanAktif]}
+                        </h2>
+                        
+                        {murni.rincian.length === 0 ? (
+                          <p className="text-xs text-stone-400 italic text-center py-4 m-0">Tidak ada shift kerja terdaftar di bulan ini.</p>
+                        ) : (
+                          <div className="divide-y divide-stone-100 max-h-60 overflow-y-auto pr-2">
+                            {murni.rincian.map((item, idx) => (
+                              <div key={idx} className="flex justify-between items-center text-xs py-2.5">
+                                <div>
+                                  <span className="font-bold text-stone-800">{item.tanggal} {daftarBulan[bulanAktif]}</span>
+                                  {item.catatan && <p className="text-[10px] text-stone-400 m-0 italic">"{item.catatan}"</p>}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                    item.tipe === 'Pagi' ? 'bg-blue-600 text-white' :
+                                    item.tipe === 'Sore' ? 'bg-yellow-400 text-stone-900' :
+                                    'bg-gradient-to-r from-red-600 to-orange-500 text-white'
+                                  }`}>
+                                    {item.tipe}
+                                  </span>
+                                  <span className="font-bold text-stone-800">Rp {item.gaji.toLocaleString('id-ID')}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200 space-y-4">
+                        <div>
+                          <h3 className="font-bold text-stone-800 text-sm">Pusat Data & Keamanan Cadangan</h3>
+                          <p className="text-stone-400 text-[10px] m-0">Cadangkan seluruh data shift Anda secara mandiri agar aman dari penghapusan browser harian.</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <button 
+                            onClick={eksporData} 
+                            className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-2 focus:outline-none shadow-sm"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Unduh Cadangan
+                          </button>
+                          
+                          <input 
+                            type="file" 
+                            id="file-impor-json-local" 
+                            accept=".json" 
+                            onChange={imporData} 
+                            className="hidden" 
+                          />
+                          <button 
+                            onClick={() => document.getElementById('file-impor-json-local').click()} 
+                            className="bg-stone-800 hover:bg-stone-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-2 focus:outline-none shadow-sm"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            Muat Cadangan
+                          </button>
+                        </div>
+
+                        <div className="border-t border-stone-100 pt-3 flex flex-col sm:flex-row justify-between items-center gap-2">
+                          <span className="text-[10px] text-stone-400">Kosongkan seluruh data saat ini:</span>
+                          <button 
+                            onClick={() => setTampilkanKonfirmasiKosongkan(true)} 
+                            className="bg-red-50 text-red-700 font-bold text-[10px] rounded-lg px-2.5 py-1 hover:bg-red-100 transition focus:outline-none"
+                          >
+                            Kosongkan Kalender
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                ) : (
+                  /* TAB 2: AKUMULASI & PERHITUNGAN GAJI */
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-6">
+                      <div className="bg-amber-900 text-white p-5 rounded-2xl shadow-md border border-amber-850">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="inline-block bg-amber-800 text-amber-200 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            Sistem Tutup Buku
+                          </span>
+                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${gajianLunas ? 'bg-emerald-500 text-white shadow-sm' : 'bg-red-500 text-white'}`}>
+                            {gajianLunas ? 'LUNAS' : 'BELUM CAIR'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-amber-200/80 m-0">Siklus Kerja ({tutupBuku.labelPeriode})</p>
+                        <p className="text-sm font-bold text-white mb-3">Gajian Transfer: {tutupBuku.labelGajian}</p>
+                        
+                        <div className="border-t border-amber-800/60 pt-3 flex flex-col gap-3">
+                          <div>
+                            <span className="text-xs text-amber-300 block">Jumlah Gaji Diterima</span>
+                            <span className="text-2xl font-black text-amber-200">
+                              Rp {tutupBuku.total.toLocaleString('id-ID')}
+                            </span>
+                          </div>
+
+                          <button 
+                            onClick={() => {
+                              const baru = { ...statusGaji, [keyGajiPeriod]: !gajianLunas }
+                              setStatusGaji(baru)
+                              pemicuNotifikasi(`Gaji gajian ${tutupBuku.labelGajian} diubah menjadi ${!gajianLunas ? 'LUNAS' : 'BELUM CAIR'}`)
+                            }}
+                            className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 focus:outline-none border ${
+                              gajianLunas 
+                                ? 'bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500' 
+                                : 'bg-amber-950 text-amber-200 border-amber-800 hover:bg-amber-900'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full bg-current"></span>
+                            {gajianLunas ? 'Ubah Status Jadi Belum Cair' : 'Tandai Sudah Diterima (Lunas)'}
+                          </button>
+
+                          <button 
+                            onClick={() => bukaModalLaporan('tutupBuku')}
+                            className="w-full bg-amber-850 hover:bg-amber-800 text-amber-200 text-xs font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 border border-amber-800 focus:outline-none"
+                          >
+                            Kirim Laporan Kerja
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200">
+                        <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">Aturan Gaji Nescafe</h4>
+                        <p className="text-[10px] text-stone-500 mb-3">Sistem upah harian otomatis flat berdasarkan tipe kehadiran shift kerja.</p>
+                        
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between p-2 rounded-lg bg-stone-50 border border-stone-150">
+                            <span className="font-semibold text-stone-700">Pagi (07:00 - 15:00)</span>
+                            <span className="font-bold text-blue-600">Rp 70.000</span>
+                          </div>
+                          <div className="flex justify-between p-2 rounded-lg bg-stone-50 border border-stone-150">
+                            <span className="font-semibold text-stone-700">Sore (15:00 - 23:00)</span>
+                            <span className="font-bold text-yellow-600">Rp 70.000</span>
+                          </div>
+                          <div className="flex justify-between p-2 rounded-lg bg-stone-50 border border-stone-150">
+                            <span className="font-semibold text-stone-700">Long (07:00 - 23:00)</span>
+                            <span className="font-bold text-red-600">Rp 140.000</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2 space-y-6">
+                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2 border-b border-stone-100 pb-4">
+                          <div>
+                            <h2 className="text-base font-bold text-stone-850">Akumulasi Filter Multi-Bulan</h2>
+                            <p className="text-xs text-stone-400">Total upah & kalender dari bulan-bulan terpilih</p>
+                          </div>
+                          <button 
+                            onClick={bukaModalMultiFilter}
                             className="bg-amber-950 hover:bg-amber-900 text-white font-bold text-xs py-2 px-4 rounded-xl flex items-center justify-center gap-1.5 transition shadow-sm self-start"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293L3.293 7.793A1 1 0 013 7.086V4z" />
                             </svg>
-                            Filter Rentang Bulan
+                            Filter Multi-Bulan ({selectedFilterMonths.length})
                           </button>
                         </div>
                         
@@ -654,22 +925,64 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
                         {/* Deretan Kalender Multi-Bulan */}
                         <div className="space-y-6">
                           <h4 className="text-xs font-bold text-stone-400 uppercase tracking-wider mb-2">
-                            Kalender Rentang Filter
+                            Kalender Bulan Terfilter
                           </h4>
                           
-                          <div className="grid grid-cols-1 gap-6">
-                            {(() => {
-                                const months = []
-                                const [sy, sm] = filterStart.split('-').map(Number)
-                                const [ey, em] = filterEnd.split('-').map(Number)
-                                let d = new Date(sy, sm - 1)
-                                const endD = new Date(ey, em - 1)
-                                while (d <= endD) {
-                                    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
-                                    d.setMonth(d.getMonth() + 1)
-                                }
-                                return months.map(m => renderKalenderFilterBulan(m))
-                            })()}
+                          {selectedFilterMonths.length === 0 ? (
+                            <div className="text-center py-8 text-stone-400 italic text-xs border border-dashed rounded-xl">
+                              Belum ada bulan yang dipilih dalam filter.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 gap-6">
+                              {[...selectedFilterMonths]
+                                .sort((a, b) => a.localeCompare(b))
+                                .map(thnBln => renderKalenderFilterBulan(thnBln))
+                              }
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+                        <div className="p-4 rounded-xl bg-stone-50 border border-stone-200">
+                          <h4 className="text-sm font-bold text-stone-800 mb-2">Struktur Perhitungan Gaji Kumulatif</h4>
+                          <p className="text-xs text-stone-500 mb-3">Akumulasi seluruh upah yang telah dimasukkan sejak pertama kali mencatat.</p>
+                          
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs border border-stone-200">
+                              <thead className="bg-stone-800 text-white">
+                                <tr>
+                                  <th className="p-2 border">Jenis Shift</th>
+                                  <th className="p-2 border">Tarif</th>
+                                  <th className="p-2 border">Metode Rumus</th>
+                                  <th className="p-2 border">Total Masuk (Semua Bulan)</th>
+                                  <th className="p-2 border">Total Pendapatan</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-stone-200">
+                                <tr>
+                                  <td className="p-2 border"><span className="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">Pagi</span></td>
+                                  <td className="p-2 border">Rp 70.000</td>
+                                  <td className="p-2 border">Masuk x Rp 70.000</td>
+                                  <td className="p-2 border">{akumulasiSemua.pagi}x</td>
+                                  <td className="p-2 border font-bold">Rp {(akumulasiSemua.pagi * 70000).toLocaleString('id-ID')}</td>
+                                </tr>
+                                <tr>
+                                  <td className="p-2 border"><span className="bg-yellow-400 text-stone-900 px-2 py-0.5 rounded text-[10px] font-bold">Sore</span></td>
+                                  <td className="p-2 border">Rp 70.000</td>
+                                  <td className="p-2 border">Masuk x Rp 70.000</td>
+                                  <td className="p-2 border">{akumulasiSemua.sore}x</td>
+                                  <td className="p-2 border font-bold">Rp {(akumulasiSemua.sore * 70000).toLocaleString('id-ID')}</td>
+                                </tr>
+                                <tr>
+                                  <td className="p-2 border"><span className="bg-gradient-to-r from-red-600 to-orange-500 text-white px-2 py-0.5 rounded text-[10px] font-bold">Long Shift</span></td>
+                                  <td className="p-2 border">Rp 140.000</td>
+                                  <td className="p-2 border">Masuk x (Rp 70.000 x 2)</td>
+                                  <td className="p-2 border">{akumulasiSemua.long}x</td>
+                                  <td className="p-2 border font-bold">Rp {(akumulasiSemua.long * 140000).toLocaleString('id-ID')}</td>
+                                </tr>
+                              </tbody>
+                            </table>
                           </div>
                         </div>
                       </div>
@@ -777,45 +1090,45 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
                           <div className="grid grid-cols-3 gap-2">
                             {daftarBulan.map((bln, idx) => {
                               const formatKey = `${thn}-${String(idx + 1).padStart(2, '0')}`
-              {/* MODAL POPUP RANGE FILTER */}
-              {tampilkanRangeFilterModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                  <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-stone-200">
-                    <div className="bg-amber-950 text-white p-4">
-                      <h5 className="font-bold text-base m-0">Filter Rentang Bulan</h5>
-                    </div>
-
-                    <div className="p-4 space-y-4">
-                      {/* Dari */}
-                      <div>
-                        <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Dari</label>
-                        <div className="flex gap-2">
-                           <select value={filterStart.split('-')[0]} onChange={(e) => setFilterStart(`${e.target.value}-${filterStart.split('-')[1]}`)} className="flex-1 border p-2 text-xs rounded-lg bg-stone-50">
-                             {daftarTahun.map(y => <option key={y} value={y}>{y}</option>)}
-                           </select>
-                           <select value={filterStart.split('-')[1]} onChange={(e) => setFilterStart(`${filterStart.split('-')[0]}-${e.target.value}`)} className="flex-1 border p-2 text-xs rounded-lg bg-stone-50">
-                             {daftarBulan.map((b, i) => <option key={i} value={String(i+1).padStart(2,'0')}>{b}</option>)}
-                           </select>
+                              const isChecked = tempSelectedMonths.includes(formatKey)
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => handleToggleMonthSelection(thn, idx)}
+                                  className={`py-2 px-3 text-xs font-semibold rounded-xl border flex items-center justify-between transition ${
+                                    isChecked 
+                                      ? 'bg-amber-950 border-amber-950 text-white shadow-sm font-bold' 
+                                      : 'bg-white border-stone-200 hover:bg-stone-50 text-stone-700'
+                                  }`}
+                                >
+                                  <span>{bln}</span>
+                                  {isChecked && (
+                                    <svg className="w-3.5 h-3.5 text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
                         </div>
-                      </div>
-                      
-                      {/* Sampai */}
-                      <div>
-                        <label className="block text-[10px] font-bold text-stone-400 uppercase tracking-wider mb-1">Sampai</label>
-                        <div className="flex gap-2">
-                           <select value={filterEnd.split('-')[0]} onChange={(e) => setFilterEnd(`${e.target.value}-${filterEnd.split('-')[1]}`)} className="flex-1 border p-2 text-xs rounded-lg bg-stone-50">
-                             {daftarTahun.map(y => <option key={y} value={y}>{y}</option>)}
-                           </select>
-                           <select value={filterEnd.split('-')[1]} onChange={(e) => setFilterEnd(`${filterEnd.split('-')[0]}-${e.target.value}`)} className="flex-1 border p-2 text-xs rounded-lg bg-stone-50">
-                             {daftarBulan.map((b, i) => <option key={i} value={String(i+1).padStart(2,'0')}>{b}</option>)}
-                           </select>
-                        </div>
-                      </div>
+                      ))}
                     </div>
 
                     <div className="bg-stone-50 px-4 py-3 flex gap-2 border-t border-stone-150 justify-end">
-                      <button onClick={() => setTampilkanRangeFilterModal(false)} className="px-4 py-2 bg-stone-200 text-stone-700 hover:bg-stone-300 rounded-xl text-xs font-bold transition">Batal</button>
-                      <button onClick={terapkanFilter} className="px-4 py-2 bg-amber-950 hover:bg-amber-900 text-white rounded-xl text-xs font-bold transition">Terapkan</button>
+                      <button 
+                        onClick={() => setTampilkanMultiFilterModal(false)} 
+                        className="px-4 py-2 bg-stone-200 text-stone-700 hover:bg-stone-300 rounded-xl text-xs font-bold transition"
+                      >
+                        Batal
+                      </button>
+                      <button 
+                        onClick={terapkanMultiFilter} 
+                        className="px-4 py-2 bg-amber-950 hover:bg-amber-900 text-white rounded-xl text-xs font-bold transition"
+                      >
+                        Terapkan Filter ({tempSelectedMonths.length})
+                      </button>
                     </div>
                   </div>
                 </div>

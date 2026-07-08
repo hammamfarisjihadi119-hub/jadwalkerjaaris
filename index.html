@@ -83,6 +83,11 @@
             return dapatkanDataLokal('nescafe_shifts_github', DATA_AWAL);
           });
 
+          // State untuk melacak status pembayaran gaji (Lunas / Belum Cair) per bulan gajian
+          const [statusGaji, setStatusGaji] = useState(() => {
+            return dapatkanDataLokal('nescafe_status_gaji_github', {});
+          });
+
           const tanggalSekarang = new Date(2026, 6, 8);
           const [tahunAktif, setTahunAktif] = useState(tanggalSekarang.getFullYear());
           const [bulanAktif, setBulanAktif] = useState(tanggalSekarang.getMonth());
@@ -118,6 +123,10 @@
           useEffect(() => {
             simpanDataLokal('nescafe_nama_karyawan_github', namaKaryawan);
           }, [namaKaryawan]);
+
+          useEffect(() => {
+            simpanDataLokal('nescafe_status_gaji_github', statusGaji);
+          }, [statusGaji]);
 
           const pemicuNotifikasi = (pesan) => {
             setNotifikasi(pesan);
@@ -264,6 +273,10 @@
           const tutupBuku = hitungGajiTutupBuku();
           const akumulasiSemua = hitungAkumulasiSemua();
 
+          // Kunci periodik gajian untuk melacak status pembayaran (Lunas / Belum)
+          const keyGajiPeriod = `${tahunAktif}-${String(bulanAktif + 1).padStart(2, '0')}`;
+          const gajianLunas = statusGaji[keyGajiPeriod] || false;
+
           const bukaFormShift = (tanggal) => {
             const key = formatKeKey(tahunAktif, bulanAktif, tanggal);
             const shiftAda = dataShift[key];
@@ -365,10 +378,12 @@
 
           const dapatkanTeksLaporan = () => {
             const namaText = namaKaryawan.trim() ? namaKaryawan : '[Nama Anda]';
+            const statusText = gajianLunas ? 'LUNAS (Sudah Diterima)' : 'BELUM CAIR';
             if (tipeLaporan === 'tutupBuku') {
               return `Laporan Gaji Nescafe - Sistem Tutup Buku
 Nama: ${namaText}
 Periode: ${tutupBuku.labelPeriode} (Gajian: ${tutupBuku.labelGajian})
+Status Pembayaran: ${statusText}
 
 Rincian Kerja:
 - Shift Pagi: ${tutupBuku.pagi}x (Rp ${(tutupBuku.pagi * 70000).toLocaleString('id-ID')})
@@ -501,6 +516,7 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                 </div>
               </div>
 
+              { }
               <main className="max-w-4xl mx-auto px-4">
                 {tabAktif === 'kalender' ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -515,6 +531,7 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                         Pilih Bulan & Tahun
                       </button>
 
+                      {/* Gaji Berjalan */}
                       <div className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200">
                         <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider mb-2">
                           Gaji Kalender Berjalan
@@ -538,10 +555,17 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                         </div>
                       </div>
 
+                      {/* Sistem Tutup Buku & Status Pembayaran */}
                       <div className="bg-amber-900 text-white p-5 rounded-2xl shadow-md border border-amber-850">
-                        <span className="inline-block bg-amber-800 text-amber-200 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider mb-2">
-                          Sistem Tutup Buku
-                        </span>
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="inline-block bg-amber-800 text-amber-200 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                            Sistem Tutup Buku
+                          </span>
+                          {/* Label Badge Status Lunas untuk bulan yang ditampilkan */}
+                          <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${gajianLunas ? 'bg-emerald-500 text-white shadow-sm' : 'bg-red-500 text-white'}`}>
+                            {gajianLunas ? 'LUNAS' : 'BELUM CAIR'}
+                          </span>
+                        </div>
                         <p className="text-xs text-amber-200/80 m-0">Siklus Kerja ({tutupBuku.labelPeriode})</p>
                         <p className="text-sm font-bold text-white mb-3">Gajian Transfer: {tutupBuku.labelGajian}</p>
                         
@@ -552,6 +576,24 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                               Rp {tutupBuku.total.toLocaleString('id-ID')}
                             </span>
                           </div>
+
+                          {/* Tombol Togel Status Pembayaran */}
+                          <button 
+                            onClick={() => {
+                              const baru = { ...statusGaji, [keyGajiPeriod]: !gajianLunas };
+                              setStatusGaji(baru);
+                              pemicuNotifikasi(`Gaji gajian ${tutupBuku.labelGajian} diubah menjadi ${!gajianLunas ? 'LUNAS' : 'BELUM CAIR'}`);
+                            }}
+                            className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 focus:outline-none border ${
+                              gajianLunas 
+                                ? 'bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-500' 
+                                : 'bg-amber-950 text-amber-200 border-amber-800 hover:bg-amber-900'
+                            }`}
+                          >
+                            <span className="w-2 h-2 rounded-full bg-current"></span>
+                            {gajianLunas ? 'Ubah Status Jadi Belum Cair' : 'Tandai Sudah Diterima (Lunas)'}
+                          </button>
+
                           <button 
                             onClick={() => bukaModalLaporan('tutupBuku')}
                             className="w-full bg-amber-850 hover:bg-amber-800 text-amber-200 text-xs font-bold py-2.5 px-3 rounded-xl transition flex items-center justify-center gap-1.5 border border-amber-800 focus:outline-none"
@@ -582,6 +624,7 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                       </div>
                     </div>
 
+                    {}
                     <div className="md:col-span-2 space-y-6">
                       <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
                         <div className="flex justify-between items-center mb-5">
@@ -749,6 +792,7 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                     </div>
                   </div>
                 ) : (
+                  /* TAB 2: AKUMULASI & PERHITUNGAN GAJI */
                   <div className="space-y-6">
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
                       <h2 className="text-lg font-bold text-stone-850 mb-4 text-center">Akumulasi Gaji & Arsip Kalender Otomatis</h2>
@@ -859,6 +903,7 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                 )}
               </main>
 
+              {}
               {tampilkanFilterModal && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                   <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-stone-200">
@@ -1087,7 +1132,7 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                     <div className="bg-stone-50 px-4 py-3 flex gap-2 border-t border-stone-150 justify-between items-center">
                       <button 
                         onClick={() => {
-                          navigator.clipboard.writeText(dapatkanTeksLaporan());
+                          document.execCommand('copy'); // Fallback aman sesuai regulasi iFrame
                           pemicuNotifikasi("Teks laporan berhasil disalin!");
                         }}
                         className="px-3 py-2 bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition"

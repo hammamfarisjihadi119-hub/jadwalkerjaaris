@@ -59,23 +59,7 @@
           Libur: 0
         };
 
-        const DATA_AWAL = {
-          "2026-06-24": { tipe: "Pagi", catatan: "Mulai kerja Nescafe" },
-          "2026-06-25": { tipe: "Libur", catatan: "Off" },
-          "2026-06-26": { tipe: "Long", catatan: "" },
-          "2026-06-27": { tipe: "Pagi", catatan: "" },
-          "2026-06-28": { tipe: "Sore", catatan: "" },
-          "2026-06-29": { tipe: "Pagi", catatan: "" },
-          "2026-06-30": { tipe: "Pagi", catatan: "" },
-          "2026-07-01": { tipe: "Pagi", catatan: "" },
-          "2026-07-02": { tipe: "Libur", catatan: "Off" },
-          "2026-07-03": { tipe: "Sore", catatan: "" },
-          "2026-07-04": { tipe: "Long", catatan: "" },
-          "2026-07-05": { tipe: "Sore", catatan: "Ganti jadwal" },
-          "2026-07-06": { tipe: "Sore", catatan: "" },
-          "2026-07-07": { tipe: "Pagi", catatan: "" },
-          "2026-07-08": { tipe: "Pagi", catatan: "Hari ini" }
-        };
+        const DATA_AWAL = {};
 
         const dapatkanDataLokal = (key, nilaiBawaan) => {
           try {
@@ -90,7 +74,7 @@
           try {
             localStorage.setItem(key, JSON.stringify(data));
           } catch (e) {
-            // Berjalan aman di memori jika diblokir
+            // Berjalan aman jika penyimpanan lokal diblokir browser
           }
         };
 
@@ -121,9 +105,8 @@
 
           const [notifikasi, setNotifikasi] = useState(null);
 
-          // State baru untuk Fitur Ekspor Laporan Kerja
           const [tampilkanModalLaporan, setTampilkanModalLaporan] = useState(false);
-          const [tipeLaporan, setTipeLaporan] = useState('tutupBuku'); // 'tutupBuku' atau 'murni'
+          const [tipeLaporan, setTipeLaporan] = useState('tutupBuku');
           const [namaKaryawan, setNamaKaryawan] = useState(() => {
             return dapatkanDataLokal('nescafe_nama_karyawan_github', '');
           });
@@ -233,11 +216,9 @@
             let sore = 0;
             let long = 0;
 
-            let loop = new Date(tglAwal.getTime());
-            const akhirTime = tglAkhir.getTime();
-            const satuHariMs = 24 * 60 * 60 * 1000;
+            let loop = new Date(tglAwal);
 
-            while (loop.getTime() <= akhirTime) {
+            while (loop <= tglAkhir) {
               const key = formatKeKey(loop.getFullYear(), loop.getMonth(), loop.getDate());
               const shift = dataShift[key];
               if (shift && shift.tipe !== 'Libur') {
@@ -247,7 +228,7 @@
                 if (shift.tipe === 'Sore') sore++;
                 if (shift.tipe === 'Long') long++;
               }
-              loop.setTime(loop.getTime() + satuHariMs);
+              loop.setDate(loop.getDate() + 1);
             }
 
             return {
@@ -260,21 +241,28 @@
             };
           };
 
-          const hitungTotalGajiKumulatifSemua = () => {
+          const hitungAkumulasiSemua = () => {
+            let pagi = 0;
+            let sore = 0;
+            let long = 0;
             let total = 0;
             Object.keys(dataShift).forEach(key => {
               const item = dataShift[key];
               if (item && item.tipe !== 'Libur') {
-                total += TARIF[item.tipe];
+                const tarif = TARIF[item.tipe] || 0;
+                total += tarif;
+                if (item.tipe === 'Pagi') pagi++;
+                if (item.tipe === 'Sore') sore++;
+                if (item.tipe === 'Long') long++;
               }
             });
-            return total;
+            return { total, pagi, sore, long };
           };
 
           const murni = hitungGajiMurniBulan(tahunAktif, bulanAktif);
           const murniArsip = hitungGajiMurniBulan(tahunArsipAktif, bulanArsipAktif);
           const tutupBuku = hitungGajiTutupBuku();
-          const totalKumulatif = hitungTotalGajiKumulatifSemua();
+          const akumulasiSemua = hitungAkumulasiSemua();
 
           const bukaFormShift = (tanggal) => {
             const key = formatKeKey(tahunAktif, bulanAktif, tanggal);
@@ -320,7 +308,7 @@
 
           const muatDataUlang = () => {
             setDataShift(DATA_AWAL);
-            pemicuNotifikasi("Data kerja berhasil dikembalikan ke jadwal awal");
+            pemicuNotifikasi("Semua jadwal kerja Anda berhasil dikosongkan!");
           };
 
           const bukaModalFilter = () => {
@@ -335,7 +323,6 @@
             setTampilkanFilterModal(false);
           };
 
-          // Logika baru untuk Fitur 1 (Ekspor & Impor Cadangan)
           const eksporData = () => {
             try {
               const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataShift));
@@ -371,7 +358,6 @@
             reader.readAsText(file);
           };
 
-          // Logika baru untuk Fitur 3 (Pembuat Laporan Berbagi)
           const bukaModalLaporan = (tipe) => {
             setTipeLaporan(tipe);
             setTampilkanModalLaporan(true);
@@ -529,7 +515,6 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                         Pilih Bulan & Tahun
                       </button>
 
-                      {/* Kalender Berjalan + Bagikan Laporan */}
                       <div className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200">
                         <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider mb-2">
                           Gaji Kalender Berjalan
@@ -553,7 +538,6 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                         </div>
                       </div>
 
-                      {/* Tutup Buku + Bagikan Laporan */}
                       <div className="bg-amber-900 text-white p-5 rounded-2xl shadow-md border border-amber-850">
                         <span className="inline-block bg-amber-800 text-amber-200 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider mb-2">
                           Sistem Tutup Buku
@@ -719,7 +703,6 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                         )}
                       </div>
 
-                      {/* Fitur Baru 1: Pusat Pengaturan, Backup & Restore JSON */}
                       <div className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200 space-y-4">
                         <div>
                           <h3 className="font-bold text-stone-800 text-sm">Pusat Data & Keamanan Cadangan</h3>
@@ -756,9 +739,9 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                         </div>
 
                         <div className="border-t border-stone-100 pt-3 flex flex-col sm:flex-row justify-between items-center gap-2">
-                          <span className="text-[10px] text-stone-400">Kembalikan ke jadwal bawaan:</span>
-                          <button onClick={muatDataUlang} className="bg-stone-100 text-stone-700 font-bold text-[10px] rounded-lg px-2.5 py-1 hover:bg-stone-200 transition focus:outline-none">
-                            Atur Ulang Jadwal
+                          <span className="text-[10px] text-stone-400">Kosongkan seluruh data saat ini:</span>
+                          <button onClick={muatDataUlang} className="bg-red-50 text-red-700 font-bold text-[10px] rounded-lg px-2.5 py-1 hover:bg-red-100 transition focus:outline-none">
+                            Kosongkan Kalender
                           </button>
                         </div>
                       </div>
@@ -774,7 +757,7 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                         <div className="p-4 rounded-xl text-white text-center bg-amber-950 flex flex-col justify-center">
                           <span className="text-xs text-amber-200 block mb-1 font-semibold">Total Gaji Kumulatif Terkumpul (Semua Jadwal)</span>
                           <span className="text-3xl font-black text-amber-300">
-                            Rp {totalKumulatif.toLocaleString('id-ID')}
+                            Rp {akumulasiSemua.total.toLocaleString('id-ID')}
                           </span>
                         </div>
                         <div className="p-4 rounded-xl bg-stone-900 text-white text-center flex flex-col justify-center">
@@ -850,22 +833,22 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                                 <td className="p-2 border"><span className="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] font-bold">Pagi</span></td>
                                 <td className="p-2 border">Rp 70.000</td>
                                 <td className="p-2 border">Masuk x Rp 70.000</td>
-                                <td className="p-2 border">{murniArsip.pagi}x</td>
-                                <td className="p-2 border font-bold">Rp {(murniArsip.pagi * 70000).toLocaleString('id-ID')}</td>
+                                <td className="p-2 border">{akumulasiSemua.pagi}x</td>
+                                <td className="p-2 border font-bold">Rp {(akumulasiSemua.pagi * 70000).toLocaleString('id-ID')}</td>
                               </tr>
                               <tr>
                                 <td className="p-2 border"><span className="bg-yellow-400 text-stone-900 px-2 py-0.5 rounded text-[10px] font-bold">Sore</span></td>
                                 <td className="p-2 border">Rp 70.000</td>
                                 <td className="p-2 border">Masuk x Rp 70.000</td>
-                                <td className="p-2 border">{murniArsip.sore}x</td>
-                                <td className="p-2 border font-bold">Rp {(murniArsip.sore * 70000).toLocaleString('id-ID')}</td>
+                                <td className="p-2 border">{akumulasiSemua.sore}x</td>
+                                <td className="p-2 border font-bold">Rp {(akumulasiSemua.sore * 70000).toLocaleString('id-ID')}</td>
                               </tr>
                               <tr>
                                 <td className="p-2 border"><span className="bg-gradient-to-r from-red-600 to-orange-500 text-white px-2 py-0.5 rounded text-[10px] font-bold">Long Shift</span></td>
                                 <td className="p-2 border">Rp 140.000</td>
                                 <td className="p-2 border">Masuk x (Rp 70.000 x 2)</td>
-                                <td className="p-2 border">{murniArsip.long}x</td>
-                                <td className="p-2 border font-bold">Rp {(murniArsip.long * 140000).toLocaleString('id-ID')}</td>
+                                <td className="p-2 border">{akumulasiSemua.long}x</td>
+                                <td className="p-2 border font-bold">Rp {(akumulasiSemua.long * 140000).toLocaleString('id-ID')}</td>
                               </tr>
                             </tbody>
                           </table>
@@ -1053,7 +1036,6 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                 </div>
               )}
 
-              {/* Fitur Baru 3: Modal Ekspor & Kirim Laporan WhatsApp */}
               {tampilkanModalLaporan && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                   <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-stone-200">
@@ -1135,7 +1117,6 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`;
                   </div>
                 </div>
               )}
-
             </div>
           );
         }

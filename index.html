@@ -87,7 +87,8 @@
             return dapatkanDataLokal('nescafe_status_gaji_github', {})
           })
 
-          const tanggalSekarang = new Date(2026, 6, 8)
+          // SEMUA MENGGUNAKAN TANGGAL REAL - TANPA HARDCODE
+          const tanggalSekarang = new Date()
           const [tahunAktif, setTahunAktif] = useState(tanggalSekarang.getFullYear())
           const [bulanAktif, setBulanAktif] = useState(tanggalSekarang.getMonth())
           
@@ -99,19 +100,19 @@
           const [tampilkanModal, setTampilkanModal] = useState(false)
           const [tampilkanFilterModal, setTampilkanFilterModal] = useState(false)
           
-          // State untuk filter range bulan-tahun
-          const [filterTahun, setFilterTahun] = useState(2026)
-          const [filterBulanMulai, setFilterBulanMulai] = useState(0)
-          const [filterBulanSelesai, setFilterBulanSelesai] = useState(11)
+          // FILTER RANGE - DEFAULT MENGIKUTI BULAN REAL SEKARANG
+          const [filterTahun, setFilterTahun] = useState(tanggalSekarang.getFullYear())
+          const [filterBulanMulai, setFilterBulanMulai] = useState(tanggalSekarang.getMonth())
+          const [filterBulanSelesai, setFilterBulanSelesai] = useState(tanggalSekarang.getMonth())
           
           // State untuk modal filter range - masing-masing terpisah
           const [tampilkanModalTahun, setTampilkanModalTahun] = useState(false)
           const [tampilkanModalBulanMulai, setTampilkanModalBulanMulai] = useState(false)
           const [tampilkanModalBulanSelesai, setTampilkanModalBulanSelesai] = useState(false)
           
-          const [tempFilterTahun, setTempFilterTahun] = useState(2026)
-          const [tempFilterBulanMulai, setTempFilterBulanMulai] = useState(0)
-          const [tempFilterBulanSelesai, setTempFilterBulanSelesai] = useState(11)
+          const [tempFilterTahun, setTempFilterTahun] = useState(tanggalSekarang.getFullYear())
+          const [tempFilterBulanMulai, setTempFilterBulanMulai] = useState(tanggalSekarang.getMonth())
+          const [tempFilterBulanSelesai, setTempFilterBulanSelesai] = useState(tanggalSekarang.getMonth())
 
           const [sudahTercatat, setSudahTercatat] = useState(false)
           const [tampilkanKonfirmasiHapus, setTampilkanKonfirmasiHapus] = useState(false)
@@ -401,12 +402,13 @@
             pemicuNotifikasi(`Bulan selesai: ${daftarBulan[bulan]}`)
           }
 
-          // Fungsi RESET FILTER - mengembalikan ke default semua bulan
+          // Fungsi RESET FILTER - mengembalikan ke bulan real sekarang
           const resetFilter = () => {
-            setFilterTahun(2026)
-            setFilterBulanMulai(0)
-            setFilterBulanSelesai(11)
-            pemicuNotifikasi("Filter telah direset ke default (Januari - Desember 2026)")
+            const sekarang = new Date()
+            setFilterTahun(sekarang.getFullYear())
+            setFilterBulanMulai(sekarang.getMonth())
+            setFilterBulanSelesai(sekarang.getMonth())
+            pemicuNotifikasi(`Filter direset ke bulan sekarang: ${daftarBulan[sekarang.getMonth()]} ${sekarang.getFullYear()}`)
           }
 
           const eksporData = () => {
@@ -696,12 +698,13 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
 
                           <button 
                             onClick={() => {
-                              setBulanAktif(6)
-                              setTahunAktif(2026)
+                              const sekarang = new Date()
+                              setBulanAktif(sekarang.getMonth())
+                              setTahunAktif(sekarang.getFullYear())
                             }}
                             className="text-xs bg-stone-100 hover:bg-stone-250 text-stone-800 font-bold py-2 px-3 rounded-xl border border-stone-300 transition"
                           >
-                            Bulan Utama
+                            Bulan Sekarang
                           </button>
                         </div>
 
@@ -739,7 +742,10 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
                               }
                             }
 
-                            const adalahHariIni = tahunAktif === 2026 && bulanAktif === 6 && tanggal === 8
+                            const sekarang = new Date()
+                            const adalahHariIni = tahunAktif === sekarang.getFullYear() && 
+                                                  bulanAktif === sekarang.getMonth() && 
+                                                  tanggal === sekarang.getDate()
 
                             return (
                               <button
@@ -926,7 +932,7 @@ Total Gaji: Rp ${murni.total.toLocaleString('id-ID')}`
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>
-                              Reset Filter
+                              Reset ke Bulan Ini
                             </button>
                           </div>
                         </div>
